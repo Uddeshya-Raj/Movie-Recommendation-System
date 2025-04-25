@@ -5,3 +5,7 @@ main.py
 cache/
 img_cache/
 movienv/
+test.ipynb
+test2.ipynb
+debug.log
+recommender/__pycache__/
