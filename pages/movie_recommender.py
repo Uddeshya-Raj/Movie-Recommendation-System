@@ -4,6 +4,7 @@ from recommender.data_loader import *
 from recommender.utils import *
 from recommender import movie_names
 from st_cytoscape import cytoscape
+from recommender import stylesheet, layout
 
 # Load the model
 @st.cache_resource
@@ -19,14 +20,10 @@ if 'selections' not in st.session_state:
     st.session_state.selections = [""] * 3
 if 'submitted_movies' not in st.session_state:
     st.session_state.submitted_movies = []
-# if 'selected_nodes' not in st.session_state:
-#     st.session_state.selected_nodes = set()
-# if 'selected_edges' not in st.session_state:
-#     st.session_state.selected_edges = set()
-
-# # Dummy movie options (can be replaced later)
-# movie_options = ["The Shawshank Redemption", "The Godfather", "The Dark Knight",
-#                 "Pulp Fiction", "Forrest Gump", "Inception", "Fight Club",]
+if 'profile' not in st.session_state:
+    st.session_state.profile = defaultdict(int)
+if "used_movies" not in st.session_state:
+    st.session_state.used_movies = set()
 
 movie_options = movie_names
 
@@ -35,11 +32,53 @@ def add_dropdown():
     if st.session_state.dropdown_count < 3:
         st.session_state.dropdown_count += 1
 
-# def search_function(query: str) -> list:
-#     """
-#     Search for movies based on the query.
-#     """
-#     return movie_names.values(prefix=query.lower())[:10]
+def update_profile(movie_id, action):
+    if movie_id in st.session_state.used_movies:
+        return
+    else:
+        st.session_state.used_movies.add(movie_id)
+    genres = get_movie_genre(movie_id=movie_id)
+    if action == "add":
+        for genre in genres:
+            st.session_state.profile[genre] += 1
+    elif action == "remove":
+        for genre in genres:
+            st.session_state.profile[genre] -= 1
+            if st.session_state.profile[genre] < 0:
+                st.session_state.profile[genre] = 0
+
+def create_movie_element(movie_id):
+    data = get_movie_data(movie_id=movie_id)
+    if not data:
+        return None
+    col = st.columns(1)[0]
+    with st.container(border=True):
+        poster_url =  f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
+        st.image(poster_url, use_container_width=True)
+        st.markdown(f"**{data['title']}**")
+
+        # Action buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            st.button(
+                "➕",
+                key=f"add_{movie_id}",
+                on_click=update_profile,
+                args=(movie_id, "add"),
+                help="you liked this movie",
+                use_container_width=True,
+                disabled=movie_id in st.session_state.used_movies
+            )
+        with col2:
+            st.button(
+                "➖",
+                key=f"remove_{movie_id}",
+                on_click=update_profile,
+                args=(movie_id, "remove"),
+                help="you disliked this movie",
+                use_container_width=True,
+                disabled=movie_id in st.session_state.used_movies
+            )
 
 # Input section
 with st.container():
@@ -52,15 +91,6 @@ with st.container():
             key=f"movie_select_{i}"
         )
 
-        # st.session_state.selections[i] = st_searchbox(
-        #     search_function=search_function,
-        #     placeholder=f"Search Movie {i + 1}",
-        #     # options=movie_options,
-        #     key=f"movie_search_{i}",
-        #     default=None,
-        #     clear_on_submit=False
-        # )
-
     col1, col2 = st.columns(2)
     with col1:
         st.button("Add", on_click=add_dropdown, disabled=st.session_state.dropdown_count >= 3)
@@ -72,50 +102,29 @@ with st.container():
 # Result section
 if st.session_state.submitted_movies:
     st.markdown("---")
-    st.subheader("Recommended Movies:")
 
-    # Display movies in a row
     submitted_movies = st.session_state.submitted_movies
     ref_ids = [get_movie_id(movie_name=movie_name) for movie_name in submitted_movies]
     cand_ids = get_movie_pool(ref_ids)
+    pool = sorted(cand_ids, key=lambda mov_id: get_movie_goodness_score(mov_id), reverse=True)
     recommended_movies = find_similar_movies(cand_ids, ref_ids)
-
-
-    cols = st.columns(len(recommended_movies))
-    
-    for idx, mov_id in enumerate(recommended_movies):
-        movie_data = get_movie_data(movie_id=mov_id)
-        if movie_data:
-            poster_url = get_movie_poster(movie_data)
-            movie_name = movie_data.get('title', 'Unknown')
-            tmdb_url = f"https://www.themoviedb.org/movie/{mov_id}"
-            with cols[idx]:
-                if poster_url:
-                    st.image(poster_url, use_container_width=True)
-                else:
-                    st.write("No image")
-                # st.markdown(f"**{movie_data.get('title', 'Unknown')}**")
-                st.markdown(
-                    f'<a href="{tmdb_url}" target="_blank" style="text-decoration: none;"><b>{movie_name}</b></a>',
-                    unsafe_allow_html=True
-                )
-        else:
-            with cols[idx]:
-                st.write(f"Movie not found: {movie_name}")
-
-    st.markdown("---")
-    st.subheader("Why watch these?")
+    pool = [movie_id for movie_id in pool if movie_id not in recommended_movies]
 
     movies = []
     people = []
     themes = []
-    # elements = []
     movie_nodes = []
     person_nodes = []
     theme_nodes = []
     edges = []
 
+    # create initial profile
+    for movie_id in ref_ids:
+        genres = get_movie_genre(movie_id=movie_id)
+        for genre in genres:
+            st.session_state.profile[genre] += 1
 
+    # generate graph data
     for mov_id in ref_ids+recommended_movies:
         movie_data = get_movie_data(movie_id=mov_id)
         if movie_data:
@@ -261,224 +270,83 @@ if st.session_state.submitted_movies:
                 if edge:
                     break
 
-    stylesheet = [
-        # Movie nodes
-        {
-            "selector": ".movie-node",
-            "style": {
-                "shape": "ellipse",
-                "width": 200,
-                "height": 200,
-                "background-fit": "cover",
-                "background-image": "data(image)",
-                "background-color": "data(color)",
-                "label": "",
-                "font-size": "16px",
-                "text-valign": "bottom",
-                "text-halign": "center",
-                "border-width": 3,
-                "border-color": "data(color)"
-            }
-        },
-        {
-            "selector": ".movie-node:selected",
-            "style": {
-                "width": 250,
-                "height": 250,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "white",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-                "text-valign": "bottom",
-                "text-halign": "center"
-            }
-        },
-        {
-            "selector": ".movie-node:active",
-            "style": {
-                "width": 250,
-                "height": 250,
-                "overlay-opacity": 0,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "white",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-                "text-valign": "bottom",
-                "text-halign": "center"
-            }
-        },
-        # Person nodes
-        {
-            "selector": ".person-node",
-            "style": {
-                "shape": "ellipse",
-                "width": 150,
-                "height": 150,
-                "background-fit": "cover",
-                "background-image": "data(image)",
-                "background-color": "data(color)",
-                "label": "",
-                "font-size": "16px",
-                "text-valign": "bottom",
-                "text-halign": "center",
-                "border-width": 1,
-                "border-color": "data(color)"
-            }
-        },
-        {
-            "selector": ".person-node:selected",
-            "style": {
-                "width": 200, 
-                "height": 200,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "#fff",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-                "text-valign": "bottom",
-                "text-halign": "center"
-            }
-        },
-        {
-            "selector": ".person-node:active",
-            "style": {
-                "width": 200, 
-                "height": 200,
-                "overlay-opacity": 0,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "#fff",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-                "text-valign": "bottom",
-                "text-halign": "center"
-            }
-        },
-        # Theme nodes
-        {
-            "selector": ".theme-node",
-            "style": {
-                "shape": "round-rectangle",
-                "width": "data(width)",
-                "height": 50,
-                "background-color": "#e9f5e9",
-                "background-opacity": 1,
-                "label": "data(label)",
-                "font-size": "20px",
-                "font-weight": "bold",
-                "text-valign": "center",
-                "text-halign": "center",
-                "border-width": 3,
-                "border-color": "#a5d6a7",
-            }
-        },
-        {
-            "selector": ".theme-node:selected",
-            "style": {
-                "width": "data(expanded_width)",
-                "height": 100,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "#fff",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-                "text-valign": "center",
-                "text-halign": "center",
-                "background-color": "#e9f5e9",
-                'background-opacity': 1,
-                "border-color": "#a5d6a7",
-            }
-        },
-        {
-            "selector": ".theme-node:active",
-            "style": {
-                "width": "data(expanded_width)",
-                "height": 100,
-                "overlay-opacity": 0,
-                "label": "data(label)",
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "#fff",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.4,
-                "text-valign": "center",
-                "text-halign": "center",
-                "background-color": "#e9f5e9",
-                'background-opacity': 1,
-                "border-color": "#a5d6a7",
-            }
-        },
-        # Edges
-        {
-            "selector": ".edge",
-            "style": {
-                "curve-style": "bezier",
-                "target-arrow-shape": "triangle",
-                "line-color": "data(color)",
-                "target-arrow-color": "data(color)",
-                "width": 0.7,
-                "label": "data(label)",
-                "font-size": "20px",
-                "transition-property": "width, line-color",
-                "transition-duration": "0.3s"
-            }
-        },
-        {
-            "selector": ".edge:selected",
-            "style": {
-                "line-color": "#8B0000",
-                "width": 2,
-                "target-arrow-color": "#8B0000",
-                "z-index": 9999,
-                "font-size": "25px",
-                "font-family": "Arial Black",
-                "color": "grey",
-                "text-outline-color": "#222",
-                "text-outline-width": 0.7,
-            }
-        },
+    tab1, tab2 = st.tabs(["Movie Recommendations", "User Profile"])
+    with tab1:
+        st.subheader("Recommended Movies:")
+
+        # Display movies in a row
+        cols = st.columns(len(recommended_movies))
         
-    ]            
-    
-    st.markdown(
-        """
-        <style>
-         div.element-container:has(iframe)  {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 10px;
-            box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 1rem;
+        for idx, mov_id in enumerate(recommended_movies):
+            movie_data = get_movie_data(movie_id=mov_id)
+            if movie_data:
+                poster_url = get_movie_poster(movie_data)
+                movie_name = movie_data.get('title', 'Unknown')
+                tmdb_url = f"https://www.themoviedb.org/movie/{mov_id}"
+                with cols[idx]:
+                    if poster_url:
+                        st.image(poster_url, use_container_width=True)
+                    else:
+                        st.write("No image")
+                    # st.markdown(f"**{movie_data.get('title', 'Unknown')}**")
+                    st.markdown(
+                        f'<a href="{tmdb_url}" target="_blank" style="text-decoration: none;"><b>{movie_name}</b></a>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                with cols[idx]:
+                    st.write(f"Movie not found: {movie_name}")
+
+        st.markdown("---")
+        st.subheader("Why watch these?")
+
+        st.markdown(
+            """
+            <style>
+            div.element-container:has(iframe)  {
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                padding: 10px;
+                box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+                margin-bottom: 1rem;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        cyto_return = cytoscape(
+            elements=movie_nodes + person_nodes + theme_nodes + edges,
+            layout=layout,
+            stylesheet=stylesheet,
+            height="750px",
+            width="100%",
+            key="cytoscape-graph"
+        )
+
+    with tab2:
+        st.subheader("Genre Preference Profile:")
+        st.write("Your profile is based on the movies you liked/disliked.")
+        
+        total_score = sum(st.session_state.profile.values())
+        if total_score > 0:
+            percentage_profile = {genre: (score / total_score) * 100 for genre, score in st.session_state.profile.items()}
+        else:
+            percentage_profile = {genre: 0 for genre in st.session_state.profile.keys()}
+
+        chart_data = {
+            'Genre': list(percentage_profile.keys()),
+            'Strength': list(percentage_profile.values())
         }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
 
-    layout = {
-        "name": "cose",          # Layout algorithm
-        "idealEdgeLength": 100,  # Preferred edge length (pixels)
-        "nodeOverlap": 30,       # Minimum node spacing (pixels)
-        "refresh": 25,           # Layout refresh rate (iterations)
-        "randomize": False,      # Initial random positioning
-        "componentSpacing": 150, # Space between disconnected components
-        "nodeRepulsion": 800000, # Node repulsion force
-        "edgeElasticity": 200,   # Edge spring stiffness
-        "nestingFactor": 8       # Compound node spacing
-    }
+        st.bar_chart(chart_data, x='Genre', y='Strength')
 
-    cyto_return = cytoscape(
-        elements=movie_nodes + person_nodes + theme_nodes + edges,
-        layout=layout,
-        stylesheet=stylesheet,
-        height="750px",
-        width="100%",
-        key="cytoscape-graph"
-    )
+        st.subheader("Movie Recommendations:") 
+        st.write("Tell us which movies you liked/disliked to improve your recommendations.")
+
+        with st.container(height=400, border=True):
+            pool_cols = st.columns(5)
+            for idx, mov_id in enumerate(recommended_movies+pool):
+                with pool_cols[idx % 5]:
+                    create_movie_element(mov_id)
+
