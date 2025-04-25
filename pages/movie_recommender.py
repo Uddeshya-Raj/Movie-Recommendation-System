@@ -344,7 +344,7 @@ if st.session_state.submitted_movies:
         st.subheader("Movie Recommendations:") 
         st.write("Tell us which movies you liked/disliked to improve your recommendations.")
 
-        with st.container(height=400, border=True):
+        with st.container(height=600, border=True):
             pool_cols = st.columns(5)
             for idx, mov_id in enumerate(recommended_movies+pool):
                 with pool_cols[idx % 5]:
