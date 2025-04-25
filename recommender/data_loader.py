@@ -21,7 +21,7 @@ def remove_cache(key):
     if key in cache:
         cache.delete(key)
 
-# @st.cache_data
+@st.cache_data
 def get_movie_id(movie_name):
     url = "https://api.themoviedb.org/3/search/movie?api_key=" + api_key + "&query=" + urllib.parse.quote(movie_name)
     response = requests.get(url)
@@ -36,7 +36,7 @@ def get_movie_id(movie_name):
     else:
         return None
 
-# @st.cache_data    
+@st.cache_data    
 def get_movie_data(movie_name=None, movie_id=None):
     params_dict = {
         'movie_name': movie_name,
@@ -70,7 +70,7 @@ def get_movie_data(movie_name=None, movie_id=None):
         cache.set(cache_key, response_json, expire=86400)
     return response_json
 
-# @st.cache_data
+@st.cache_data
 def get_movie_poster(movie_data):
     if not movie_data or 'poster_path' not in movie_data:
         return None
@@ -140,7 +140,7 @@ def get_movie_credits(movie_id, session=None):
     
     return None
 
-# @st.cache_data
+@st.cache_data
 def id_to_person(person_id):
     cache_key = f"person:{person_id}"
     if cache_key in cache:
@@ -188,6 +188,7 @@ def find_related_movies(movie_id, session=None):
     related_movies = list(set(collection_movies + recommendations))
     return related_movies
 
+@st.cache_data
 def get_movie_goodness_score(movie_id: int) -> float:
     """
     Calculate goodness score for a movie based on its popularity and vote_average and vote_count.
@@ -216,7 +217,7 @@ def get_movie_goodness_score(movie_id: int) -> float:
     goodness_score = (0.4*popularity) + (0.6*greatness_score)
     return goodness_score
     
-
+@st.cache_data
 def search_movies(actor_id=None, director_id=None, writer_id=None, genre_id=None, limit=15):
     """
     Search for movies based on actor, director, writer, or genre.
@@ -260,7 +261,6 @@ def search_movies(actor_id=None, director_id=None, writer_id=None, genre_id=None
 
     return None
 
-# @st.cache_data
 def get_movie_pool(movie_ids: List[int]) -> List[int]:
     # start_time = time.time()
     similar_movies = set()
@@ -332,13 +332,13 @@ def get_movie_pool(movie_ids: List[int]) -> List[int]:
     return list(similar_movies)
 
 
-# @st.cache_data
+@st.cache_data
 def get_combined_keywords(movie_id: int, api_key: str=api_key) -> list:
     """Returns combined keywords from TMDB and Wikidata with optimizations"""
     # Cache keys
     cache_key_tmdb = f"keywords:tmdb:{movie_id}"
     cache_key_wiki = f"keywords:wiki:{movie_id}"
-
+    movie_name = get_movie_data(movie_id=movie_id).get("original_title", None)
     # Try TMDB cache first
     tmdb_keywords = cache.get(cache_key_tmdb, default=None)
     # if(tmdb_keywords is not None):
@@ -369,6 +369,7 @@ def get_combined_keywords(movie_id: int, api_key: str=api_key) -> list:
     if wikidata_props is None:
         # print("Wikidata cache miss")
         sparql = SPARQLWrapper("https://query.wikidata.org/sparql")
+        sparql.addCustomHttpHeader("User-Agent", "MovieRecommenderProject/1.0 (uddeshya24@iitk.ac.in)")
         query = f"""
         SELECT DISTINCT ?propertyLabel WHERE {{
           ?film wdt:P4947 "{movie_id}";
@@ -394,7 +395,7 @@ def get_combined_keywords(movie_id: int, api_key: str=api_key) -> list:
                 if '429' in str(e) and attempt < max_retries:
                     time.sleep(1 + attempt)
                     continue
-                print(f"Wikidata Error: {str(e)}")
+                print(f"Wikidata Error: ({movie_name}) {str(e)}")
                 break
 
     # Clean Wikidata keywords (applied even to cached results)
