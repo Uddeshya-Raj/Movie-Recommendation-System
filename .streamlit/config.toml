@@ -1,2 +1,2 @@
 [server]
-enablePipInstaller
+enablePipInstaller = true
