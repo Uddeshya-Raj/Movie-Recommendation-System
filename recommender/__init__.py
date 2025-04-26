@@ -42,8 +42,8 @@ stylesheet = [
         "selector": ".movie-node",
         "style": {
             "shape": "ellipse",
-            "width": 200,
-            "height": 200,
+            "width": "data(width)",
+            "height": "data(width)",
             "background-fit": "cover",
             "background-image": "data(image)",
             "background-color": "data(color)",
@@ -58,8 +58,8 @@ stylesheet = [
     {
         "selector": ".movie-node:selected",
         "style": {
-            "width": 250,
-            "height": 250,
+            "width": "data(expanded_width)",
+            "height": "data(expanded_width)",
             "label": "data(label)",
             "font-size": "25px",
             "font-family": "Arial Black",
@@ -73,8 +73,8 @@ stylesheet = [
     {
         "selector": ".movie-node:active",
         "style": {
-            "width": 250,
-            "height": 250,
+            "width": "data(expanded_width)",
+            "height": "data(expanded_width)",
             "overlay-opacity": 0,
             "label": "data(label)",
             "font-size": "25px",

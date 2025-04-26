@@ -192,10 +192,11 @@ if st.session_state.submitted_movies:
             "data":{
                 "id": movie['id'],
                 "label": movie['title'],
-                # "title": movie['title'],
                 "type": "movie",
                 "image": get_image_data_url(movie['poster_path']),
                 "color": "#ff0000" if movie['mov_id'] in ref_ids else "#00ff00",
+                "width": "225px" if movie['mov_id'] in ref_ids else "275px",
+                "expanded_width": "275px" if movie['mov_id'] in ref_ids else "325px",
             },
             "classes": "movie-node"
         })
@@ -206,7 +207,6 @@ if st.session_state.submitted_movies:
             "data":{
                 "id": person['id'],
                 "label": person['name'],
-                # "title": person['name'],
                 "type": "person",
                 "image": get_image_data_url(person['image_path']),
                 "color": "#0000ff"
