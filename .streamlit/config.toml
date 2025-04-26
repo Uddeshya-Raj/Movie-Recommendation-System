@@ -1,2 +1,5 @@
 [server]
 enablePipInstaller = true
+
+[theme]
+base="light"
