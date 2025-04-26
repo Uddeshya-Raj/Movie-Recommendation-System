@@ -1,7 +1,7 @@
 import requests
 import urllib.parse
 import concurrent.futures
-from typing import List, Dict, Optional, Any
+from typing import List, Dict
 import time
 import math
 import json

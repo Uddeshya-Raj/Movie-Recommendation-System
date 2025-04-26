@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_searchbox import st_searchbox
 from recommender.data_loader import *
 from recommender.utils import *
 from recommender import movie_names

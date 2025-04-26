@@ -1,0 +1,16 @@
+# Core libraries
+streamlit==1.44.1
+st-cytoscape==0.0.5
+diskcache==5.6.3
+
+# Machine learning and data processing
+sentence-transformers==4.0.2
+scikit-learn==1.6.1
+numpy==2.2.4
+
+# API and data fetching
+requests==2.32.3
+SPARQLWrapper==2.0.0
+
+# Other dependencies
+urllib3==2.3.0

@@ -1,6 +1,5 @@
 ## file to initialize recommender module
 import os
-from pytrie import StringTrie
 from diskcache import Cache
 
 cache = Cache("./cache")
