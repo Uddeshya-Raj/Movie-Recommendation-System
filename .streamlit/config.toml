@@ -2,4 +2,4 @@
 enablePipInstaller = true
 
 [theme]
-base="light"
+base="dark"
